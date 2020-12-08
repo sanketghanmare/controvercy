@@ -1,14 +1,14 @@
+import csv
+import itertools
 import re
 
-import fasttext
-import tweepy
-from tweepy import OAuthHandler
-from textblob import TextBlob
-from bs4 import BeautifulSoup
-import re
-import itertools
 import emoji
-import geocoder
+import matplotlib.pyplot as plt
+import pandas as pd
+import tweepy
+from bs4 import BeautifulSoup
+from textblob import TextBlob
+from tweepy import OAuthHandler
 
 
 # emoticons
@@ -268,7 +268,6 @@ class TwitterClient(object):
         # Standardizing words
         tweet = ''.join(''.join(s)[:2] for _, s in itertools.groupby(tweet))
 
-        # Deal with emoticons source: https://en.wikipedia.org/wiki/List_of_emoticons
         SMILEY = load_dict_smileys()
         words = tweet.split()
         reformed = [SMILEY[word] if word in SMILEY else word for word in words]
@@ -315,9 +314,6 @@ class TwitterClient(object):
 
             # parsing tweets one by one
             for tweet in fetched_tweets:
-                # empty dictionary to store required params of a tweet
-
-                # print(tweet)
 
                 parsed_tweet = {}
 
@@ -332,9 +328,9 @@ class TwitterClient(object):
 
                 parsed_tweet['userscreenname'] = tweet.user.screen_name
 
-                result = geocoder.arcgis(tweet.place)
-
-                parsed_tweet['tweetlocation'] = (result.x, result.y)
+                # result = geocoder.arcgis(tweet.place)
+                #
+                # parsed_tweet['tweetlocation'] = (result.x, result.y)
 
                 # saving sentiment of tweet
                 parsed_tweet['sentiment'] = self.get_tweet_sentiment(tweet.text)
@@ -355,11 +351,9 @@ class TwitterClient(object):
                 else:
                     tweets.append(parsed_tweet)
 
-            # return parsed tweets
             return tweets
 
         except tweepy.TweepError as e:
-            # print error (if any)
             print("Error : " + str(e))
 
 
@@ -378,10 +372,10 @@ def controvercy_rate(topicsbasedontac):
         list, total_negative_tweets, total_neg_pos_tweets, tac = topicsbasedontac[topic]
         cr = (total_negative_tweets / total_neg_pos_tweets) * 100
         if (cr >= 40):
-            topic_obj["topic"] = topic
-            topic_obj["cr"] = cr
-            topic_obj["remark"] = "controversial"
-            topic_obj["tweetanduserdatalist"] = list
+            topic_obj["Topic"] = topic
+            topic_obj["CR"] = cr
+            topic_obj["Remark"] = "controversial"
+            topic_obj["Tweet and Users"] = list
             contovercial_topics_list.append(topic_obj)
 
     return contovercial_topics_list
@@ -391,8 +385,9 @@ def main():
     # creating object of TwitterClient Class
     api = TwitterClient()
     # calling function to get tweets
-    listOfTopics = ['Election', 'Trump', 'Gray is the new black', 'The rise of the robots', 'joe biden', 'terrorism',
-                    'AI']
+    listOfTopics = ['hatred', 'racism', 'war', 'Election', 'Trump', 'cdc vote on vaccine distribution',
+                    'who gets the vaccine first', 'joe biden', 'terrorism', 'who are considered health care workers',
+                    '14-day quarantine states', 'soccer', 'corona', 'lockdown', 'play station 5']
     topicCommentDict = {}
     for topic in listOfTopics:
         taccount = 0
@@ -404,23 +399,40 @@ def main():
         for ptweet in ptweets:
             taccount = taccount + ptweet['tac']
 
-        # percentage of positive tweets
-        # print("Positive tweets percentage: {} %".format(100 * len(ptweets) / len(tweets)))
         # picking negative tweets from tweets
         ntweets = [tweet for tweet in tweets if tweet['sentiment'] == 'negative']
 
         for ntweet in ntweets:
             taccount = taccount + ntweet['tac']
-        # percentage of negative tweets
 
         taccount += len(ptweets) + len(ntweets)
 
         topicCommentDict[topic] = ({'list': ntweets}, len(ntweets), len(ntweets) + len(ptweets), taccount)
 
-
     topicsbasedontac = get_topics_basedon_tac(topicCommentDict)
     topicobj = controvercy_rate(topicsbasedontac)
-    print(topicobj)
+    fields = ['Topic', 'CR', 'Remark', 'Tweet and Users']
+    filename = "controversialtopics2.csv"
+
+    with open(filename, 'w') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(topicobj)
+
+    data = pd.read_csv('controversialtopics2.csv')
+
+    fig, ax = plt.subplots()
+
+    ax.scatter(data['Topic'], data['CR'], vmin=-3, vmax=3, alpha=0.5)
+    ax.set_ylim(0, 100)
+    ax.set_xlabel('Topics', fontsize=15)
+    ax.set_ylabel('CR', fontsize=15)
+    ax.set_title('Topics Classified as Controvercial')
+
+    ax.grid(True)
+    fig.tight_layout()
+
+    plt.show()
 
 
 if __name__ == "__main__":
